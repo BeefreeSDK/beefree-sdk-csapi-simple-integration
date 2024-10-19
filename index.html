@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Template Exporter</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        margin: 0;
+        padding: 20px;
+        background-color: #fbf9ff;
+        color: #272d3d;
+      }
+
+      #json-input {
+        width: 100%;
+        height: 200px;
+      }
+
+      #output {
+        margin-top: 20px;
+        white-space: pre-wrap;
+        border: 1px solid #ccc;
+        padding: 10px;
+        background-color: #f1f0ee;
+      }
+
+      button {
+        margin-right: 10px;
+        padding: 10px 15px;
+        background-color: #7747ff;
+        color: white;
+        border: none;
+        border-radius: 5px;
+        cursor: pointer;
+      }
+
+      button:hover {
+        background-color: #82eda8;
+      }
+
+      #download-section a {
+        display: inline-block;
+        margin-top: 10px;
+        text-decoration: none;
+        padding: 10px 15px;
+        background-color: #7747ff;
+        color: white;
+        border-radius: 5px;
+      }
+
+      header {
+        text-align: center;
+        margin-bottom: 20px;
+      }
+    </style>
+  </head>
+
+  <body>
+    <header>
+      <h1>Beefree SDK | Content Services API</h1>
+    </header>
+
+    <h3>Paste JSON (for Plain Text, HTML) or HTML (for PDF):</h3>
+    <textarea
+      id="json-input"
+      placeholder="Paste your template JSON or HTML here"
+    ></textarea>
+
+    <div>
+      <button id="export-plain-text">Export Plain Text</button>
+      <button id="export-pdf">Export PDF</button>
+      <button id="export-html">Export HTML</button>
+    </div>
+
+    <h3>Exported Output:</h3>
+    <div id="output"></div>
+
+    <h3>Download:</h3>
+    <div id="download-section"></div>
+
+    <script>
+      document.addEventListener("DOMContentLoaded", () => {
+        const plainTextButton = document.getElementById("export-plain-text");
+        const pdfButton = document.getElementById("export-pdf");
+        const htmlButton = document.getElementById("export-html");
+        const jsonInput = document.getElementById("json-input");
+        const output = document.getElementById("output");
+        const downloadSection = document.getElementById("download-section");
+
+        // Replace with your server URL
+        const apiUrl = "https://your-server-url.com";  // Replace with the URL of your deployed server
+
+        // API endpoints for plain text, PDF, and HTML export
+        const plainTextApi = `${apiUrl}/v1/message/plain-text`;
+        const pdfApi = `${apiUrl}/v1/message/pdf`;
+        const htmlApi = `${apiUrl}/v1/message/html`;
+
+        // Handle plain text export
+        plainTextButton.addEventListener("click", async () => {
+          const inputContent = jsonInput.value.trim();
+          try {
+            const response = await fetch(plainTextApi, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: inputContent,  // Send raw JSON
+            });
+
+            if (!response.ok) throw new Error("Failed to export plain text");
+            const plainText = await response.text();
+            output.textContent = plainText;  // Display plain text result
+          } catch (error) {
+            output.textContent = `Error: ${error.message}`;
+          }
+        });
+
+        // Handle PDF export
+        pdfButton.addEventListener("click", async () => {
+          const inputContent = jsonInput.value.trim();
+          if (inputContent.startsWith("<html") || inputContent.startsWith("<!DOCTYPE html")) {
+            try {
+              const response = await fetch(pdfApi, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ html: inputContent }),
+              });
+
+              if (!response.ok) throw new Error("Failed to export PDF");
+              const pdfData = await response.json();
+              const pdfUrl = pdfData.body.url;
+              downloadSection.innerHTML = `<a href="${pdfUrl}" target="_blank">Download PDF</a>`;
+              output.textContent = "PDF exported successfully!";
+            } catch (error) {
+              output.textContent = `Error: ${error.message}`;
+            }
+          } else {
+            output.textContent = "Error: Please provide valid HTML for PDF export.";
+          }
+        });
+
+        // Handle HTML export
+        htmlButton.addEventListener("click", async () => {
+          const inputContent = jsonInput.value.trim();
+          try {
+            const response = await fetch(htmlApi, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: inputContent,  // Send raw JSON
+            });
+
+            if (!response.ok) throw new Error("Failed to export HTML");
+            const htmlData = await response.text();
+            output.textContent = htmlData;  // Display HTML result
+          } catch (error) {
+            output.textContent = `Error: ${error.message}`;
+          }
+        });
+      });
+    </script>
+  </body>
+</html>
