@@ -12,7 +12,7 @@ app.use(bodyParser.text({ type: '*/*' })); // Ensure raw body is parsed as text 
 // Your BeeFree API token
 const apiToken = 'Bearer YOUR_API_TOKEN_HERE';  // Replace 'YOUR_API_TOKEN_HERE' with your actual API token
 
-// Function to forward POST requests to BeeFree API
+// Function to forward POST requests to Beefree SDK API
 const forwardPostRequest = async (apiEndpoint, req, res, responseType = 'json') => {
   try {
     const response = await axios.post(apiEndpoint, req.body, {
