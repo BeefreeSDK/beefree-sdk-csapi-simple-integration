@@ -5,116 +5,63 @@ const bodyParser = require('body-parser');
 
 const app = express();
 
-// Middleware to handle CORS and JSON parsing
+// Middleware to handle CORS and raw text input
 app.use(cors());
-app.use(bodyParser.json());
+app.use(bodyParser.text({ type: '*/*' })); // Ensure raw body is parsed as text for all content types
 
-// Replace with your Beefree API token
+// Your BeeFree API token
 const apiToken = 'Bearer YOUR_API_TOKEN_HERE';  // Replace 'YOUR_API_TOKEN_HERE' with your actual API token
 
-// Route to export content as plain text
-app.post('/v1/message/plain-text', async (req, res) => {
+// Function to forward POST requests to BeeFree API
+const forwardPostRequest = async (apiEndpoint, req, res, responseType = 'json') => {
   try {
-    const pageJson = req.body.page;  // Extract the "page" field from the request body
+    const response = await axios.post(apiEndpoint, req.body, {
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': apiToken,
+      },
+      responseType: responseType,  // Use json or arraybuffer depending on the request type
+    });
 
-    if (!pageJson) {
-      return res.status(400).json({ message: "Page JSON is required." });  // Send error if no JSON is provided
+    if (responseType === 'arraybuffer') {
+      // Set headers for image response
+      res.setHeader('Content-Type', 'image/png');
+      res.setHeader('Content-Disposition', 'inline'); // Display image inline
+      res.status(200).send(response.data);  // Send binary image data
+    } else {
+      res.status(200).send(response.data); // Send standard JSON response
     }
-
-    // Prepare request payload for the API
-    const payload = { page: pageJson };
-
-    // Call Beefree API to export plain text
-    const response = await axios.post(
-      'https://api.getbee.io/v1/message/plain-text',  // Beefree API URL
-      payload,
-      {
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': apiToken,  // Use the provided token for authentication
-        },
-      }
-    );
-
-    // Send plain text result back to the client
-    res.status(200).send(response.data);
   } catch (error) {
+    console.error('Error in forwardPostRequest:', error.response ? error.response.data : error.message);
     res.status(500).json({
-      message: 'Error exporting plain text',
-      details: error.response ? error.response.data : error.message
+      message: `Error exporting from ${apiEndpoint}`,
+      details: error.response ? error.response.data : error.message,
     });
   }
+};
+
+// Route to handle Plain Text export
+app.post('/v1/message/plain-text', (req, res) => {
+  const apiEndpoint = 'https://api.getbee.io/v1/message/plain-text';
+  forwardPostRequest(apiEndpoint, req, res);
 });
 
-// Route to export content as PDF
-app.post('/v1/message/pdf', async (req, res) => {
-  try {
-    const { html } = req.body;  // Extract the HTML content from the request body
-
-    if (!html) {
-      return res.status(400).json({ message: "HTML content is required." });
-    }
-
-    const pdfPayload = {
-      page_size: "Full",
-      page_orientation: "landscape",
-      html
-    };
-
-    // Call Beefree API to export PDF
-    const response = await axios.post(
-      'https://api.getbee.io/v1/message/pdf',
-      pdfPayload,
-      {
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': apiToken,
-        },
-        responseType: 'json'
-      }
-    );
-
-    // Send the PDF URL back to the client
-    res.status(200).json(response.data);
-  } catch (error) {
-    res.status(500).json({
-      message: 'Error exporting PDF',
-      details: error.response ? error.response.data : error.message
-    });
-  }
+// Route to handle HTML export
+app.post('/v1/message/html', (req, res) => {
+  const apiEndpoint = 'https://api.getbee.io/v1/message/html';
+  forwardPostRequest(apiEndpoint, req, res);
 });
 
-// Route to export content as HTML
-app.post('/v1/message/html', async (req, res) => {
-  try {
-    const pageJson = req.body.page;  // Extract the "page" field from the request body
+// Route to handle PDF export
+app.post('/v1/message/pdf', (req, res) => {
+  const apiEndpoint = 'https://api.getbee.io/v1/message/pdf';
+  forwardPostRequest(apiEndpoint, req, res);
+});
 
-    if (!pageJson) {
-      return res.status(400).json({ message: "Page JSON is required." });
-    }
-
-    const payload = { page: pageJson };
-
-    // Call Beefree API to export HTML
-    const response = await axios.post(
-      'https://api.getbee.io/v1/message/html',
-      payload,
-      {
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': apiToken,
-        },
-      }
-    );
-
-    // Send the HTML result back to the client
-    res.status(200).send(response.data);
-  } catch (error) {
-    res.status(500).json({
-      message: 'Error exporting HTML',
-      details: error.response ? error.response.data : error.message
-    });
-  }
+// Route to handle Image export (returns binary data as an image)
+app.post('/v1/message/image', (req, res) => {
+  const apiEndpoint = 'https://api.getbee.io/v1/message/image';
+  forwardPostRequest(apiEndpoint, req, res, 'arraybuffer'); // Use arraybuffer for binary response
 });
 
 // Root route to verify that the server is running
