@@ -1,122 +1,159 @@
-Beefree SDK CSAPI Simple Integration
-====================================
+## Beefree SDK React Demo with Content Services API Exports
 
-This project demonstrates a simple integration of the [Beefree SDK Content Services API](https://docs.beefree.io/beefree-sdk/apis/content-services-api/content-services-api-reference), demonstrating how to export email templates as **Plain Text**, **PDF**, **HTML**, and **Image** using a Node.js backend (running on Glitch) and a lightweight frontend interface (viewable on Codesandbox).
+This project embeds Beefree SDK’s no‑code email builder in a React (Vite + TypeScript) app and adds four export actions powered by the Content Services API: HTML, Plain Text, PDF, and Thumbnail Image. The builder uses LoginV2 server‑side authentication and tracks live changes via onChange. The export result panel appears on the left with copy/download controls; the editor is on the right.
 
-The project is divided into two parts:
+Reference: React demo style and auth flow are aligned with the official example repo and docs: [beefree-react-demo](https://github.com/BeefreeSDK/beefree-react-demo), and the Content Services API export docs are here: [Export API](https://docs.beefree.io/beefree-sdk/apis/content-services-api/export).
 
-1.  **Backend** (Node.js, Express) - Hosted on Glitch, responsible for interacting with the [Beefree SDK Content Services API](https://docs.beefree.io/beefree-sdk/apis/content-services-api/content-services-api-reference) to export templates in different formats.
-2.  **Frontend** (HTML, JavaScript) - Hosted on Codesandbox, providing a user interface for inputting JSON/HTML templates and receiving exports from the backend.
+### Features
 
-Features
---------
+- Beefree SDK editor embedded with client‑side initialization and LoginV2 token from a Node proxy
+- onChange tracking enabled to keep current JSON in sync
+- Four export actions:
+  - Get design HTML
+  - Get design Plain Text
+  - Get design Thumbnail Image
+  - Get design PDF
+- Results pane with copy/download and image/PDF handling
 
--   Export email templates as **Plain Text**, **HTML**, **PDF**, or **Image** using the [Beefree SDK Content Services API](https://docs.beefree.io/beefree-sdk/apis/content-services-api/content-services-api-reference).
--   User-friendly interface with simple interactions.
--   Clear separation between frontend and backend, using server-to-server communication.
+### Prerequisites
 
-Prerequisites
--------------
+- Node 20+
+- Beefree SDK credentials: Client ID and Client Secret
+- Content Services API token
 
-Before getting started, ensure you have the following:
+### Environment
 
--   A [**Beefree SDK** API key](https://docs.beefree.io/beefree-sdk/apis/content-services-api/content-services-api-reference#api-key) for authentication. You will need to replace the placeholder in `server.js` with your actual API key, which you can obtain in the [Beefree SDK Developer Console](https://developers.beefree.io/accounts/login/?from=website_menu).
--   A [**Glitch** account](https://glitch.com) for running the backend.
--   A [**Codesandbox** account](https://codesandbox.io) for previewing and interacting with the frontend.
+Create a `.env` in the project root:
 
-Backend (Glitch)
-----------------
+```
+BEE_CLIENT_ID=your-client-id
+BEE_CLIENT_SECRET=your-client-secret
+CS_API_TOKEN=your-csapi-token-or-"Bearer ..."
+PORT=3001
+```
 
-The backend is built using **Node.js** and **Express**, and it communicates with the Beefree SDK Content Services API to handle requests. The main operations (Plain Text, HTML, PDF, and Image export) are performed server-to-server.
+### Install and Run Locally
 
-### Setting Up the Backend in Glitch
+1) Install deps
+```
+npm install
+```
 
-1.  **Go to Glitch**: Create a new project in Glitch and upload the `server.js` file.
+2) Start the proxy (LoginV2 + CS API forwarder)
+```
+npm run dev:proxy
+```
 
-2.  **Dependencies**: Make sure your `package.json` includes the necessary dependencies:
+3) Start the React app
+```
+npm run dev
+```
 
-    ```
-    {
-      "name": "glitch-beefree-integration",
-      "version": "1.0.0",
-      "description": "Beefree SDK integration on Glitch",
-      "main": "server.js",
-      "scripts": {
-        "start": "node server.js"
-      },
-      "dependencies": {
-        "express": "^4.18.2",
-        "axios": "^1.4.0",
-        "cors": "^2.8.5",
-        "body-parser": "^1.20.2"
-      },
-      "engines": {
-        "node": "14.x"
-      }
-    }
-    ```
+4) Open the app: `http://localhost:3000`
 
-3.  **API Token**: Update the `server.js` file to include your actual Beefree SDK API token:
+### How It Works
 
-    `const apiToken = 'Bearer YOUR_API_TOKEN_HERE'; // Replace with your actual API token`
+- Frontend initializes Beefree SDK after fetching a LoginV2 token from `/proxy/bee-auth`.
+- `onChange` is enabled; the app stores the latest JSON, which powers the HTML/Text exports.
+- HTML is cached client‑side; PDF/Image require HTML to be computed first, otherwise the UI prompts “Convert template to HTML first”.
+- The proxy forwards export requests to the Content Services API with your `CS_API_TOKEN`.
 
-4.  **Run the Server**: Once everything is set up, click "Preview" in Glitch to obtain your backend server URL. This URL will be used to communicate with the frontend.
+### Beefree SDK Initialization (client)
 
-### Glitch Backend Behavior
+Minimalized example from `src/BeefreeEditor.tsx`:
 
--   The backend exposes endpoints to handle Plain Text, PDF, HTML, and Image export requests.
--   The endpoints listen for POST requests from the frontend, process the data using the Beefree SDK Content Services API, and return the exported result.
--   Glitch serves as a lightweight backend, running the Node.js server and allowing frontend (Codesandbox) communication.
+```ts
+const response = await fetch('/proxy/bee-auth', { method: 'POST' });
+const token = await response.json();
+const sdk = new BeefreeSDK({ ...token, v2: true });
+await sdk.start({
+  container: 'beefree-react-demo',
+  trackChanges: true,
+  onChange(json) { setCurrentJson(json); },
+}, initialJson, '', { shared: false });
+```
 
-Frontend (Codesandbox)
-----------------------
+### LoginV2 (server)
 
-The frontend is a simple **HTML** interface that allows users to input email templates as JSON or HTML and request exports. It connects to the backend on Glitch via HTTP requests.
+`proxy-server.js` exposes a LoginV2 endpoint that returns the SDK token:
 
-### Setting Up the Frontend in Codesandbox
+```js
+app.post('/proxy/bee-auth', async (req, res) => {
+  const { uid } = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
+  const response = await axios.post('https://auth.getbee.io/loginV2', {
+    client_id: process.env.BEE_CLIENT_ID,
+    client_secret: process.env.BEE_CLIENT_SECRET,
+    uid: uid || 'demo-user'
+  }, { headers: { 'Content-Type': 'application/json' } });
+  res.json(response.data);
+});
+```
 
-1.  **Go to Codesandbox**: Create a new HTML/CSS/JS sandbox.
+### Endpoints (server)
 
-2.  **Add Frontend Code**: Upload the `index.html` file. This file will serve as the interface where users can paste template data.
+All Content Services API endpoints are implemented in `proxy-server.js`. Refer to the docs to learn more about the technical specifications for each endpoint: [Export API](https://docs.beefree.io/beefree-sdk/apis/content-services-api/export).
 
-3.  **Backend URL**: In the `index.html` file, update the backend URL to point to your Glitch server:
+1) POST `/v1/message/plain-text`
 
-    `const apiUrl = "https://your-glitch-backend-url.glitch.me";  // Replace with your Glitch URL`
+- Description: Convert Beefree JSON to Plain Text
+- Request body: JSON template object
+- Response: `text/plain` string
 
-4.  **Preview the Application**: Once set up, click "Preview" in Codesandbox to see the frontend in action.
+Example request:
+```json
+{ "page": { "title": "My Template", "rows": [] } }
+```
 
-### Codesandbox Frontend Behavior
+Example response (text):
+```
+Hello world…
+```
 
--   The frontend is a single-page interface with input fields and buttons to submit template data to the backend.
--   It sends HTTP requests (using the fetch API) to the Glitch server for exporting templates in the desired format (Plain Text, PDF, HTML, or Image).
--   The backend processes the request and sends the export back to the frontend, where it is displayed or provided as a download link (for PDF and Image).
+2) POST `/v1/message/html`
 
-How the Application Works
--------------------------
+- Description: Convert Beefree JSON to HTML
+- Request body: JSON template object
+- Response: Either raw HTML text or `{ body: { html: "..." } }` depending on service
 
--   **Frontend-to-Backend Communication**: The frontend (on Codesandbox) sends a POST request to the backend (on Glitch) with either JSON (for Plain Text or HTML exports) or HTML (for PDF and Image exports).
--   **Backend Logic**: The backend processes the request using the Beefree SDK CSAPI, interacting with its services to convert the template into the requested format. The response is then sent back to the frontend.
--   **Exporting Formats**:
-    -   JSON input can be exported as Plain Text or HTML.
-    -   HTML input can be exported as a PDF or Image.
-    -   The **Image** export feature returns an image rendered from the provided HTML and displays it on the frontend, along with a download link.
+Example request:
+```json
+{ "page": { "title": "My Template", "rows": [] } }
+```
 
-Beefree SDK Content Services API Requirements
----------------------------------------------
+Example response (text):
+```html
+<!doctype html><html>…</html>
+```
 
--   **Authentication**: The [Beefree SDK Content Services API](https://docs.beefree.io/beefree-sdk/apis/content-services-api/content-services-api-reference) requires a valid API token to authenticate requests. Ensure that the `apiToken` variable in `server.js` is set to your actual API key, which you can find in your [Beefree SDK Developer Console](https://developers.beefree.io/accounts/login/?from=website_menu).
--   **API Endpoints**: The backend communicates with the Beefree SDK Content Services API to export the templates in different formats. The API handles the conversion of JSON to Plain Text/HTML, HTML to PDF, and HTML to Image.
+3) POST `/v1/message/pdf`
 
-Summary of Files
-----------------
+- Description: Generate a PDF from HTML
+- Request body: JSON with HTML and options
+```json
+{ "page_size": "Full", "page_orientation": "landscape", "html": "<!doctype html>…" }
+```
+- Response: JSON with a URL to the rendered PDF
+```json
+{ "body": { "url": "https://…/file.pdf" } }
+```
 
--   **Backend (`server.js`)**: The backend logic that handles requests and interacts with the Beefree SDK Content Services API, hosted on Glitch.
--   **Frontend (`index.html`)**: The user interface for inputting templates and displaying the exported content, viewable on Codesandbox.
+4) POST `/v1/message/image`
 
-Running the Application
------------------------
+- Description: Generate an image (thumbnail) from HTML
+- Request body: JSON with HTML and options
+```json
+{ "file_type": "png", "size": "1000", "html": "<!doctype html>…" }
+```
+- Response: `image/png` binary; the UI converts to an object URL and shows it inline with a download link
 
-1.  **Backend**: Run the backend server on Glitch by uploading `server.js` and ensuring all dependencies are in `package.json`.
-2.  **Frontend**: Preview the frontend on Codesandbox by uploading `index.html` and linking it to the Glitch backend URL.
+### UI and Layout
 
-With this setup, you can easily input JSON or HTML templates via the frontend and export them using the [Beefree SDK Content Services API](https://docs.beefree.io/beefree-sdk/apis/content-services-api/content-services-api-reference) through your Glitch backend.
+- Buttons row: Get HTML, Get Plain Text, Get Thumbnail Image, Get PDF, plus “Read the Docs”.
+- Left pane: export results with copy/download controls
+- Right pane: Beefree editor in a fixed container ID `beefree-react-demo`
+
+### Notes
+
+- Vite dev server proxies `/v1/*` and `/proxy/*` to the proxy on port 3001.
+- Ensure your `.env` is configured before starting.
+- See Content Services API Export documentation for full parameter support and behaviors: [Export API](https://docs.beefree.io/beefree-sdk/apis/content-services-api/export).
