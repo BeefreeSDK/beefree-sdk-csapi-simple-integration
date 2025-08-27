@@ -204,7 +204,17 @@ function App() {
     navigator.clipboard.writeText(result.content)
   }, [result])
 
-  const layoutStyle = { display: 'grid', gridTemplateColumns: '1fr 900px', gap: 24, paddingRight: 12 } as const
+  // Left: results pane (flexible). Right: editor with a minimum needed width so side tiles remain visible
+  const layoutStyle = {
+    display: 'grid',
+    gridTemplateColumns: 'minmax(380px, 1fr) minmax(1120px, 1200px)',
+    gap: 24,
+    paddingRight: 12,
+    justifyContent: 'center',
+    margin: '0 auto',
+    width: '100%',
+    maxWidth: 1800,
+  } as const
 
   return (
     <div style={{ padding: 16 }}>

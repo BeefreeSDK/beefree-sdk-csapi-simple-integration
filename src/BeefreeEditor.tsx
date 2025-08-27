@@ -37,7 +37,7 @@ export default function BeefreeEditor(props: BeefreeEditorProps) {
     };
   }, [onChangeJson, initialJson]);
 
-  return <div id="beefree-react-demo" ref={containerRef} style={{ height: 700, width: '100%' }} />;
+  return <div id="beefree-react-demo" ref={containerRef} style={{ height: 'calc(100vh - 140px)', width: '100%', minHeight: 500 }} />;
 }
 
 
